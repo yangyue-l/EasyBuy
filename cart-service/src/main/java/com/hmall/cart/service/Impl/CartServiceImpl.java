@@ -1,13 +1,16 @@
 package com.hmall.cart.service.Impl;
 
+import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.hmall.cart.client.ItemClient;
 import com.hmall.cart.domain.dto.CartFormDTO;
+import com.hmall.cart.domain.dto.ItemDTO;
 import com.hmall.cart.domain.po.Cart;
+import com.hmall.cart.domain.vo.CartVO;
 import com.hmall.cart.mapper.CartMapper;
 import com.hmall.cart.service.ICartService;
-import com.hmall.cart.domain.vo.CartVO;
 import com.hmall.common.exception.BizIllegalException;
 import com.hmall.common.utils.BeanUtils;
 import com.hmall.common.utils.CollUtils;
@@ -17,20 +20,22 @@ import org.springframework.stereotype.Service;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * <p>
  * 订单详情表 服务实现类
  * </p>
  *
- * @author 虎哥
- * @since 2023-05-05
  */
 @Service
 @RequiredArgsConstructor
 public class CartServiceImpl extends ServiceImpl<CartMapper, Cart> implements ICartService {
 
-
+    private final ItemClient itemClient;
     @Override
     public void addItem2Cart(CartFormDTO cartFormDTO) {
         // 1.获取登录用户
@@ -66,34 +71,33 @@ public class CartServiceImpl extends ServiceImpl<CartMapper, Cart> implements IC
         List<CartVO> vos = BeanUtils.copyList(carts, CartVO.class);
 
         // 3.处理VO中的商品信息
-        //TODO
-//        handleCartItems(vos);
+        handleCartItems(vos);
 
         // 4.返回
         return vos;
     }
-// TODO
-//    private void handleCartItems(List<CartVO> vos) {
-//        // 1.获取商品id
-//        Set<Long> itemIds = vos.stream().map(CartVO::getItemId).collect(Collectors.toSet());
-//        // 2.查询商品
-//        List<ItemDTO> items = itemService.queryItemByIds(itemIds);
-//        if (CollUtils.isEmpty(items)) {
-//            return;
-//        }
-//        // 3.转为 id 到 item的map
-//        Map<Long, ItemDTO> itemMap = items.stream().collect(Collectors.toMap(ItemDTO::getId, Function.identity()));
-//        // 4.写入vo
-//        for (CartVO v : vos) {
-//            ItemDTO item = itemMap.get(v.getItemId());
-//            if (item == null) {
-//                continue;
-//            }
-//            v.setNewPrice(item.getPrice());
-//            v.setStatus(item.getStatus());
-//            v.setStock(item.getStock());
-//        }
-//    }
+
+    private void handleCartItems(List<CartVO> vos) {
+        // 1.获取商品id
+        Set<Long> itemIds = vos.stream().map(CartVO::getItemId).collect(Collectors.toSet());
+        // 2.查询商品
+        List<ItemDTO> items = itemClient.queryItemByIds(itemIds);
+        if(CollUtil.isEmpty(items)){
+            return;
+        }
+        // 3.转为 id 到 item的map
+        Map<Long, ItemDTO> itemMap = items.stream().collect(Collectors.toMap(ItemDTO::getId, Function.identity()));
+        // 4.写入vo
+        for (CartVO v : vos) {
+            ItemDTO item = itemMap.get(v.getItemId());
+            if (item == null) {
+                continue;
+            }
+            v.setNewPrice(item.getPrice());
+            v.setStatus(item.getStatus());
+            v.setStock(item.getStock());
+        }
+    }
 
     @Override
     public void removeByItemIds(Collection<Long> itemIds) {
